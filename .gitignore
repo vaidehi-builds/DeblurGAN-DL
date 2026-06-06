@@ -1,7 +1,25 @@
+# Model files
 *.iml
 *.xml
 *.pyc
-*.png
-*.txt
 *.pth
+
+# Dataset and outputs
+*.zip
+*.png
 *.html
+*.txt
+
+# Checkpoints
+checkpoints/
+
+# Python cache
+__pycache__/
+*.pyo
+
+# Mac junk
+.DS_Store
+__MACOSX/
+
+# VS Code
+.vscode/
