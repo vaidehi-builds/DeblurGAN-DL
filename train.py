@@ -61,6 +61,9 @@ if __name__ == '__main__':
 	opt.resize_or_crop = "crop"
 	opt.fineSize = 256
 	opt.gan_type = "gan"
+	opt.continue_train = True
+	opt.which_epoch = 'latest'
+	opt.epoch_count = 10
 	# opt.which_model_netG = "unet_256"
 
 	# default = 5000

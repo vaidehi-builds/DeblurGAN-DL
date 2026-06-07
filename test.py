@@ -7,11 +7,11 @@ from util.visualizer import Visualizer
 from pdb import set_trace as st
 from util import html
 from util.metrics import PSNR
-from ssim import SSIM
+#from ssim import SSIM
 from PIL import Image
 
 opt = TestOptions().parse()
-opt.nThreads = 1   # test code only supports nThreads = 1
+opt.nThreads = 0   # test code only supports nThreads = 1
 opt.batchSize = 1  # test code only supports batchSize = 1
 opt.serial_batches = True  # no shuffle
 opt.no_flip = True  # no flip

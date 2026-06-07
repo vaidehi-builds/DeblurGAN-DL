@@ -1,68 +1,219 @@
-# DeblurGAN
-[arXiv Paper Version](https://arxiv.org/pdf/1711.07064.pdf)
+# DeblurGAN — Image Deblurring with Generative Adversarial Networks
 
-Pytorch implementation of the paper DeblurGAN: Blind Motion Deblurring Using Conditional Adversarial Networks.
+**Author:** Vaidehi  
+**Repo:** [github.com/vaidehi-builds/DeblurGAN-DL](https://github.com/vaidehi-builds/DeblurGAN-DL)  
+**Status:** Baseline training complete — analysis and loss modification in progress
 
-Our network takes blurry image as an input and procude the corresponding sharp estimate, as in the example:
-<img src="images/animation3.gif" width="400px"/> <img src="images/animation4.gif" width="400px"/>
+---
 
+## Project Overview
 
-The model we use is Conditional Wasserstein GAN with Gradient Penalty + Perceptual loss based on VGG-19 activations. Such architecture also gives good results on other image-to-image translation problems (super resolution, colorization, inpainting, dehazing etc.)
+This project implements DeblurGAN, a conditional GAN-based model for removing motion blur from images. The goal is to train a generator network that takes a blurry image as input and outputs a sharp, deblurred version.
 
-## How to run
+The project is structured as:
+1. Train the baseline DeblurGAN model
+2. Evaluate on test images (PSNR / SSIM)
+3. Identify failure modes
+4. Propose and implement a loss function modification
+5. Compare baseline vs modified model
 
-### Prerequisites
-- NVIDIA GPU + CUDA CuDNN (CPU untested, feedback appreciated)
-- Pytorch
+---
 
-Download weights from [Google Drive](https://drive.google.com/file/d/1liKzdjMRHZ-i5MWhC72EL7UZLNPj5_8Y/view?usp=sharing) . Note that during the inference you need to keep only Generator weights.
+## Environment
 
-Put the weights into 
+| Component | Version |
+|-----------|---------|
+| OS | Windows 11 |
+| Python | 3.10 |
+| PyTorch | 2.5.1 |
+| CUDA | 12.1 |
+| GPU | NVIDIA RTX 4060 |
+
+---
+
+## Dataset
+
+- **Source:** `blurred_sharp.zip` — 1151 blurry/sharp image pairs
+- **Content:** Dashcam-style car footage with motion blur
+- **Preprocessing:** Images combined into side-by-side pairs using `combine_flat.py`
+- **Training path:** `D:\DeblurGAN_DL\blurred_sharp\combined\train`
+- **Original blurry images:** `D:\DeblurGAN_DL\blurred_sharp\blurred`
+- **Original sharp images:** `D:\DeblurGAN_DL\blurred_sharp\sharp`
+
+---
+
+## Training
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Epochs | 300 |
+| Batch size | 1 |
+| Generator | ResNet-9 blocks |
+| Discriminator | PatchGAN |
+| GAN type | WGAN-GP |
+| Content loss | Perceptual (VGG19) |
+| Image size | 256 × 256 |
+| GPU | RTX 4060 |
+| Training time | ~7–8 hours |
+
+### Training Command
+
 ```bash
-/.checkpoints/experiment_name
+python train.py --dataroot D:\DeblurGAN_DL\blurred_sharp\combined\train \
+                --name experiment_name \
+                --model content_gan \
+                --which_model_netG resnet_9blocks \
+                --which_direction AtoB \
+                --lambda_A 100 \
+                --dataset_mode aligned \
+                --norm instance \
+                --pool_size 0 \
+                --no_dropout \
+                --niter 150 \
+                --niter_decay 150 \
+                --gpu_ids 0
 ```
-To test a model put your blurry images into a folder and run:
+
+### Loss Curves
+
+| Loss | Behavior |
+|------|----------|
+| G_L1 (Perceptual) | Dropped ~55% from epoch 1 to 300 |
+| G_GAN | Steadily increased — generator learning to fool discriminator |
+| D_real+fake | Collapsed to ~0.000 by epoch 2 |
+
+Training curves saved as `training_curves.png`.
+
+---
+
+## Inference
+
+### Command
+
 ```bash
-python test.py --dataroot /.path_to_your_data --model test --dataset_mode single --learn_residual
+python test.py --dataroot D:\DeblurGAN_DL\blurred_sharp\blurred \
+               --name experiment_name \
+               --model test \
+               --dataset_mode single \
+               --which_epoch latest \
+               --how_many 50 \
+               --results_dir D:\DeblurGAN_DL\results \
+               --display_id 0 \
+               --nThreads 0
 ```
-## Data
-Download dataset for Object Detection benchmark from [Google Drive](https://drive.google.com/file/d/1CPMBmRj-jBDO2ax4CxkBs9iczIFrs8VA/view?usp=sharing)
 
-## Train
+### Results
 
-If you want to train the model on your data run the following command to create image pairs:
+Output images saved to:
+```
+D:\DeblurGAN_DL\results\experiment_name\test_latest\images\
+```
+
+Each image has a pair:
+- `N_real_A.png` — original blurry input
+- `N_fake_B.png` — model's deblurred output
+
+---
+
+## Evaluation
+
+### Quantitative Results (Baseline)
+
+| Metric | Score |
+|--------|-------|
+| PSNR | 10.51 dB |
+| SSIM | 0.2608 |
+
+Evaluation script: `eval.py`
+
 ```bash
-python datasets/combine_A_and_B.py --fold_A /path/to/data/A --fold_B /path/to/data/B --fold_AB /path/to/data
-```
-And then the following command to train the model
-
-```bash
-python train.py --dataroot /.path_to_your_data --learn_residual --resize_or_crop crop --fineSize CROP_SIZE (we used 256)
+python eval.py
 ```
 
-## Other Implementations
+### Qualitative Results
 
-[Keras Blog](https://blog.sicara.com/keras-generative-adversarial-networks-image-deblurring-45e3ab6977b5)
+The baseline model outputs **near-gray images** across all checkpoints (epoch 50 through 300). No meaningful deblurring is visible.
 
-[Keras Repository](https://github.com/RaphaelMeudec/deblur-gan)
+---
 
+## Failure Analysis
 
+### Root Cause: Discriminator Collapse
 
-## Citation
+The discriminator loss (`D_real+fake`) dropped to **~0.000 by epoch 2** and remained there for the remainder of training.
 
-If you find our code helpful in your research or work please cite our paper.
+**What this means:**
+- The discriminator became unable to distinguish real from fake images extremely early
+- With no useful adversarial feedback, the generator had only the perceptual loss to guide it
+- The generator converged to outputting near-constant gray images — a safe minimum that satisfies a collapsed discriminator
+
+**Evidence:**
+- All `fake_B` outputs are gray regardless of checkpoint (epoch 50, 100, 150, 300)
+- PSNR of 10.51 dB is well below the expected range of 28–35 dB for a working model
+- SSIM of 0.26 confirms near-zero structural similarity to ground truth
+
+### Why WGAN-GP Failed Here
+
+WGAN-GP is sensitive to the balance between generator and discriminator training. With the current setup, the discriminator collapsed before it could provide stable gradients, leaving the generator without meaningful adversarial supervision.
+
+---
+
+## Proposed Next Steps
+
+Three candidate loss modifications to address discriminator collapse:
+
+**Option 1 — Edge-Aware Loss**
+Add a Sobel-based edge detection term to the content loss. Forces the generator to preserve sharp edges without relying on the discriminator signal.
+
+**Option 2 — FFT Loss**
+Add a frequency-domain loss term that penalizes differences in high-frequency components (edges and textures). Directly targets the sharpness deficit.
+
+**Option 3 — Multi-Scale Loss**
+Compute perceptual loss at multiple image scales, encouraging the generator to learn both global structure and fine detail.
+
+*Decision pending discussion with supervisor.*
+
+---
+
+## Repository Structure
 
 ```
-@article{DeblurGAN,
-  title = {DeblurGAN: Blind Motion Deblurring Using Conditional Adversarial Networks},
-  author = {Kupyn, Orest and Budzan, Volodymyr and Mykhailych, Mykola and Mishkin, Dmytro and Matas, Jiri},
-  journal = {ArXiv e-prints},
-  eprint = {1711.07064},
-  year = 2017
-}
+DeblurGAN/
+├── train.py                  # Training entry point
+├── test.py                   # Inference entry point
+├── eval.py                   # PSNR/SSIM evaluation script
+├── combine_flat.py           # Dataset preprocessing
+├── training_curves.png       # Loss curves over 300 epochs
+├── models/
+│   ├── conditional_gan_model.py
+│   ├── test_model.py
+│   ├── networks.py
+│   └── losses.py
+├── data/
+├── util/
+└── checkpoints/
+    └── experiment_name/      # Saved model weights (every 5 epochs)
 ```
 
-## Acknowledgments
-Code borrows heavily from [pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix). The images were taken from GoPRO test dataset - [DeepDeblur](https://github.com/SeungjunNah/DeepDeblur_release)
+---
 
+## Key Files
 
+| File | Purpose |
+|------|---------|
+| `models/losses.py` | Loss function definitions — modification target |
+| `models/conditional_gan_model.py` | Main training loop |
+| `models/networks.py` | Generator and Discriminator architectures |
+| `eval.py` | Computes PSNR/SSIM against ground truth |
+| `training_curves.png` | Visual training analysis |
+
+---
+
+## Notes
+
+- Windows multiprocessing fix: `--nThreads 0` required for inference on Windows
+- Visdom display disabled with `--display_id 0` (no display server running)
+- All 1151 image pairs used for training — no held-out validation split during training
+- Checkpoints saved every 5 epochs from epoch 5 to 300
