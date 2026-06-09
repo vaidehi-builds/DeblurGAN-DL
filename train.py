@@ -56,14 +56,14 @@ if __name__ == '__main__':
 
 	opt = TrainOptions().parse()
 	opt.display_id = 0
-	opt.dataroot = r'D:\DeblurGAN_DL\blurred_sharp\combined'
+	opt.dataroot = r'D:\DeblurGAN_DL\GoPro_Large\combined_train'
 	opt.learn_residual = True
 	opt.resize_or_crop = "crop"
 	opt.fineSize = 256
 	opt.gan_type = "gan"
-	opt.continue_train = True
-	opt.which_epoch = 'latest'
-	opt.epoch_count = 10
+	#opt.continue_train = True
+	#opt.which_epoch = 'latest'
+	#opt.epoch_count = 10
 	# opt.which_model_netG = "unet_256"
 
 	# default = 5000
